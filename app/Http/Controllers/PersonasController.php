@@ -1,0 +1,176 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;#manual
+use Intervention\Image\Laravel\Facades\Image;#manual
+use App\Events\PersonaSaved;#manual
+use App\Models\Persona;
+use App\Http\Requests\CreatePersonaRequest;
+
+class PersonasController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        $personas = Persona::orderBy('nPerCodigo','asc')->paginate(3);
+        return view('personas',compact('personas'));
+        //
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    //metodo crear
+    public function create()
+    {
+        return view('create',[
+            'persona'=>new Persona
+        ]);
+        //
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    //metodo store
+    public function store(CreatePersonaRequest $request)
+    {
+        //obtener las variables validadas y se guarda a la BD
+        // Persona::create($request->validated());
+        //se muestra la lista
+        // return redirect()->route('personas');
+        //otro metodo cuando se crea una persona
+        //OTRO METODO
+        $persona = new Persona($request->validated());
+        $persona->image = $request->file('image')->store('images');
+        $persona->save();
+
+        $image = Image::read(Storage::get($persona->image))
+            ->scale(width:600) //Redimensionamos la imagen a 600 px
+            ->reduceColors(255) //Limitamos el color a 255
+            ->encode(); //Volvemos a codificar la nueva imagen
+        //Sobreescribimos la misma imagen con La nueva imagen redimensionada
+        Storage::put($persona->image, (string) $image);
+        PersonaSaved::dispatch($persona);
+
+        return redirect()->route('personas.index')->with('estado','La persona fue creada correctamente');
+     
+
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $nPerCodigo)
+    {
+        // $persona = Persona::where('nPerCodigo', $nPerCodigo)->first();
+        return view('show', [
+            'persona' => Persona::find($nPerCodigo)
+        ]);
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    //metodo editar
+    public function edit(Persona $persona)
+    {
+        return view('editar',[
+            'persona'=>$persona
+        ]);
+        //
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    //metodo modificar
+    public function update(CreatePersonaRequest $request, string $id)
+    {
+        $persona = Persona::find($id);
+
+        // Verifica si el archivo de imagen está presente en el request
+        if ($request->hasFile('image')) {
+            // Elimina la imagen anterior si existe
+            if ($persona->image && Storage::exists($persona->image)) {
+                Storage::delete($persona->image);
+            }
+            
+            // Sube y guarda la nueva imagen
+            $persona->image = $request->file('image')->store('images');
+        }
+
+        // Actualiza el resto de los datos
+        $persona->fill($request->validated());
+        $persona->save();
+
+        //optimizar la imagen guardada
+        $image = Image::read(Storage::get($persona->image))
+            ->scale(width: 600)
+            ->reduceColors(255)
+            ->encode();
+
+        //sobreescribimos la imagen
+        Storage::put($persona->image, (string) $image);
+        //disparar evento
+        PersonaSaved::dispatch($persona);
+
+        return redirect()->route('personas.show', $persona)
+            ->with('estado', 'Datos de usuario actualizados correctamente.');
+    }
+
+    // public function update(Persona $persona, CreatePersonaRequest $request)
+    // {
+    //     // $persona->update($request->validated());
+
+    //     // return redirect()->route('personas.show',$nPerCodigo);
+    //     // OTRO METODO:
+    //     // if($request->hasFile('image')) {// Si enviamos un imagen
+    //     //     Storage::delete($persona->image); //LE PASAMOS LA UBICACION DE LA IMAGEN
+    //     //     $persona->fill($request->validated()); //Rellena todos los datos sin guardarlos
+    //     //     $persona->image = $request->file('image')->store('images'); //Le asignamos La imagen que sube
+    //     //     $persona->save(); //Finalmente guardamos en La Base de datos
+
+    //     //     $image = Image::read(Storage::get($persona->image))
+    //     //         ->scale(width:600) //Redimensionamos la imagen a 600 px
+    //     //         ->reduceColors(255) //Limitamos el color a 255
+    //     //         ->encode(); //Volvemos a codificar la nueva imagen
+    //     //         //Sobreescribimos la misma imagen con La nueva imagen redimensionada
+    //     //     Storage::put($persona->image, (string) $image);
+    //     //     PersonaSaved::dispatch($persona);
+
+
+    //     // }else{
+    //     //     $persona->update( array_filter($request->validated()));
+    //     // }
+    //     // return redirect()->route('personas.show', $persona)->with('estado','La persona fue actualizada correctamente');
+  
+    //     //
+    // }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    //metodo eliminar
+    public function destroy(Persona $persona)
+    {
+        // return redirect()->route('personas');
+        //otro metodo de eliminar
+        Storage::delete($persona->image); //LE PASAMOS LA UBICACION DE LA IMAGEN
+        
+        $persona->delete();
+
+        return redirect()->route('personas.index')->with('estado','La persona fue eliminada correctamente');
+    }
+    
+    public function __construct(){
+        // $this->middleware('auth')->only('create','edit');
+        $this->middleware('auth')->except('index','show');
+
+    }
+   
+}
