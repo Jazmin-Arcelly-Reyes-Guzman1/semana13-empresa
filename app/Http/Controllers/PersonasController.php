@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;#manual
-use Intervention\Image\Laravel\Facades\Image;#manual
+use Intervention\Image\Facades\Image;#manual
 use App\Events\PersonaSaved;#manual
 use App\Models\Persona;
 use App\Http\Requests\CreatePersonaRequest;
@@ -49,11 +49,11 @@ class PersonasController extends Controller
         $persona->image = $request->file('image')->store('images');
         $persona->save();
 
-        $image = Image::read(Storage::get($persona->image))
-            ->scale(width:600) //Redimensionamos la imagen a 600 px
-            ->reduceColors(255) //Limitamos el color a 255
-            ->encode(); //Volvemos a codificar la nueva imagen
-        //Sobreescribimos la misma imagen con La nueva imagen redimensionada
+        $image = Image::make(Storage::get($persona->image))
+          ->widen(600) //Redimensionamos la imagen a 600 px
+          ->limitColors(255) //Limitamos el color a 255
+          ->encode(); //Volvemos a codificar la nueva imagen
+         //Sobreescribimos la misma imagen con La nueva imagen redimensionada
         Storage::put($persona->image, (string) $image);
         PersonaSaved::dispatch($persona);
 
@@ -89,68 +89,34 @@ class PersonasController extends Controller
      * Update the specified resource in storage.
      */
     //metodo modificar
-    public function update(CreatePersonaRequest $request, string $id)
+    public function update(Persona $persona, CreatePersonaRequest $request)
     {
-        $persona = Persona::find($id);
+        // $persona->update($request->validated());
 
-        // Verifica si el archivo de imagen está presente en el request
-        if ($request->hasFile('image')) {
-            // Elimina la imagen anterior si existe
-            if ($persona->image && Storage::exists($persona->image)) {
-                Storage::delete($persona->image);
-            }
-            
-            // Sube y guarda la nueva imagen
-            $persona->image = $request->file('image')->store('images');
+        // return redirect()->route('personas.show',$nPerCodigo);
+        //OTRO METODO
+        if($request->hasFile('image')) {// Si enviamos un imagen
+            Storage::delete($persona->image); //LE PASAMOS LA UBICACION DE LA IMAGEN
+            $persona->fill($request->validated()); //Rellena todos los datos sin guardarlos
+            $persona->image = $request->file('image')->store('images'); //Le asignamos La imagen que sube
+            $persona->save(); //Finalmente guardamos en La Base de datos
+
+            $image = Image::make(Storage::get($persona->image))
+               ->widen(600) //Redimensionamos la imagen a 600 px
+               ->limitColors(255) //Limitamos el color a 255
+               ->encode(); //Volvemos a codificar la nueva imagen
+                //Sobreescribimos la misma imagen con La nueva imagen redimensionada
+            Storage::put($persona->image, (string) $image);
+            PersonaSaved::dispatch($persona);
+
+
+        }else{
+            $persona->update( array_filter($request->validated()));
         }
-
-        // Actualiza el resto de los datos
-        $persona->fill($request->validated());
-        $persona->save();
-
-        //optimizar la imagen guardada
-        $image = Image::read(Storage::get($persona->image))
-            ->scale(width: 600)
-            ->reduceColors(255)
-            ->encode();
-
-        //sobreescribimos la imagen
-        Storage::put($persona->image, (string) $image);
-        //disparar evento
-        PersonaSaved::dispatch($persona);
-
-        return redirect()->route('personas.show', $persona)
-            ->with('estado', 'Datos de usuario actualizados correctamente.');
-    }
-
-    // public function update(Persona $persona, CreatePersonaRequest $request)
-    // {
-    //     // $persona->update($request->validated());
-
-    //     // return redirect()->route('personas.show',$nPerCodigo);
-    //     // OTRO METODO:
-    //     // if($request->hasFile('image')) {// Si enviamos un imagen
-    //     //     Storage::delete($persona->image); //LE PASAMOS LA UBICACION DE LA IMAGEN
-    //     //     $persona->fill($request->validated()); //Rellena todos los datos sin guardarlos
-    //     //     $persona->image = $request->file('image')->store('images'); //Le asignamos La imagen que sube
-    //     //     $persona->save(); //Finalmente guardamos en La Base de datos
-
-    //     //     $image = Image::read(Storage::get($persona->image))
-    //     //         ->scale(width:600) //Redimensionamos la imagen a 600 px
-    //     //         ->reduceColors(255) //Limitamos el color a 255
-    //     //         ->encode(); //Volvemos a codificar la nueva imagen
-    //     //         //Sobreescribimos la misma imagen con La nueva imagen redimensionada
-    //     //     Storage::put($persona->image, (string) $image);
-    //     //     PersonaSaved::dispatch($persona);
-
-
-    //     // }else{
-    //     //     $persona->update( array_filter($request->validated()));
-    //     // }
-    //     // return redirect()->route('personas.show', $persona)->with('estado','La persona fue actualizada correctamente');
+        return redirect()->route('personas.show', $persona)->with('estado','La persona fue actualizada correctamente');
   
-    //     //
-    // }
+        
+    }
 
     /**
      * Remove the specified resource from storage.

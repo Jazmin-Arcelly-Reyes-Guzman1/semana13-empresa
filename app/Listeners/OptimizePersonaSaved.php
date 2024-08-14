@@ -3,10 +3,10 @@
 namespace App\Listeners;
 
 use App\Events\PersonaSaved;
+use Intervention\Image\Facades\Image; #manual
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use Intervention\Image\Laravel\Facades\Image;#manual
-use Illuminate\Support\Facades\Storage;#manual
 
 class OptimizePersonaSaved implements ShouldQueue
 {
@@ -24,11 +24,12 @@ class OptimizePersonaSaved implements ShouldQueue
     public function handle(PersonaSaved $event)
     {
         //
-        $image = Image::read(storage::get($event->$persona->image))
-           ->scale(width:600) 
-           ->reduceColors(255) 
-           ->encode(); 
+        $image = Image::make(storage::get($event->persona->image))
+           ->widen(600) //Redimensionamos la imagen a 600 px
+           ->limitColors(255) //Limitamos el color a 255
+           ->encode(); //Volvemos a codificar la nueva imagen
+        //Sobreescribimos la misma imagen con la nueva imagen redimensionada
 
-        Storage::put($event->$persona->image, (string) $image);
+        Storage::put($event->persona->image, (string) $image);
     }
 }
